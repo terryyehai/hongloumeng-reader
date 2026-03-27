@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>紅樓夢 — 繁體白話文版</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: "PingFang TC", "Heiti TC", "Noto Serif TC", serif;
+      background: #f5f0e6;
+      color: #333;
+      line-height: 1.8;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #8B4513 0%, #654321 100%);
+      color: #fff;
+      padding: 20px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+    
+    .header h1 {
+      font-size: 1.5rem;
+      text-align: center;
+    }
+    
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    
+    .controls button {
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: #fff;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    
+    .controls button:hover {
+      background: rgba(255,255,255,0.3);
+    }
+    
+    .chapter-select {
+      padding: 8px;
+      border-radius: 5px;
+      border: none;
+      font-size: 0.9rem;
+    }
+    
+    .content {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 30px 20px;
+      background: #fff;
+      min-height: calc(100vh - 150px);
+    }
+    
+    .chapter-title {
+      color: #8B4513;
+      font-size: 1.3rem;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #d4c4a8;
+    }
+    
+    .chapter-content {
+      text-align: justify;
+      text-indent: 2em;
+      font-size: 1.1rem;
+    }
+    
+    .chapter-content p {
+      margin-bottom: 1em;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 50px;
+      color: #666;
+    }
+    
+    .footer-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #fff;
+      padding: 15px;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+    }
+    
+    .footer-nav button {
+      padding: 10px 20px;
+      background: #8B4513;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    
+    .footer-nav button:disabled {
+      background: #ccc;
+    }
+    
+    .loading-spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #8B4513;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    @media (max-width: 600px) {
+      .content { padding: 15px; }
+      .chapter-content { font-size: 1rem; }
+      .header h1 { font-size: 1.2rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>📖 紅樓夢</h1>
+    <div class="controls">
+      <select id="chapterSelect" class="chapter-select">
+        <option value="">選擇章節...</option>
+      </select>
+    </div>
+  </div>
+  
+  <div id="content" class="content">
+    <div class="loading">載入中...</div>
+  </div>
+  
+  <div class="footer-nav">
+    <button id="prevBtn">◀ 上一回</button>
+    <button id="nextBtn">下一回 ▶</button>
+  </div>
+
+  <script>
+    const TOTAL_CHAPTERS = 121;
+    let currentChapter = 1;
+    
+    // 嘗試從同一目錄載入章節
+    async function loadChapter(num) {
+      const content = document.getElementById('content');
+      content.innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>載入第 ' + num + ' 回...</p></div>';
+      
+      try {
+        // 嘗試載入 chXX.md 文件
+        const chapterFile = 'ch' + num.toString().padStart(2, '0') + '.md';
+        const response = await fetch(chapterFile);
+        
+        if (response.ok) {
+          const text = await response.text();
+          const titleMatch = text.match(/##?[^#\n]+/);
+          const title = titleMatch ? titleMatch[0].replace(/^##?\s*/, '').trim() : '第 ' + num + ' 回';
+          
+          // 簡易 Markdown 轉換
+          let html = text
+            .replace(/^#.*$/gm, '') // 移除標題行
+            .replace(/^## (.*$)/gm, '<h2 class="chapter-title">$1</h2>')
+            .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+            .replace(/^$/gm, '</p><p>')
+            .replace(/\n/g, '<br>');
+          
+          // 清理標題
+          const cleanTitle = title.replace(/^#*\s*/, '');
+          
+          content.innerHTML = '<h2 class="chapter-title">' + cleanTitle + '</h2><div class="chapter-content"><p>' + html + '</p></div>';
+          currentChapter = num;
+        } else {
+          content.innerHTML = '<div class="loading"><p>章節載入失敗: ' + response.status + '</p></div>';
+        }
+      } catch (e) {
+        content.innerHTML = '<div class="loading"><p>無法載入章節: ' + e.message + '</p></div>';
+      }
+      
+      // 更新按鈕狀態
+      document.getElementById('prevBtn').disabled = currentChapter <= 1;
+      document.getElementById('nextBtn').disabled = currentChapter >= TOTAL_CHAPTERS;
+      document.getElementById('chapterSelect').value = currentChapter;
+    }
+    
+    // 初始化
+    function init() {
+      const select = document.getElementById('chapterSelect');
+      
+      // 建立章節選單
+      for (let i = 1; i <= TOTAL_CHAPTERS; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = '第 ' + i + ' 回';
+        select.appendChild(option);
+      }
+      
+      // 監聽選擇
+      select.addEventListener('change', (e) => {
+        loadChapter(parseInt(e.target.value));
+      });
+      
+      // 上下章按鈕
+      document.getElementById('prevBtn').addEventListener('click', () => {
+        if (currentChapter > 1) loadChapter(currentChapter - 1);
+      });
+      
+      document.getElementById('nextBtn').addEventListener('click', () => {
+        if (currentChapter < TOTAL_CHAPTERS) loadChapter(currentChapter + 1);
+      });
+      
+      // 載入第一章
+      loadChapter(1);
+    }
+    
+    init();
+  </script>
+</body>
+</html>
