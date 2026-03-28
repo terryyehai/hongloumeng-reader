@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>紅樓夢 — 繁體白話文版</title>
+  <title>古典名著線上閱讀</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
@@ -34,9 +34,10 @@
       justify-content: center;
       gap: 10px;
       margin-top: 10px;
+      flex-wrap: wrap;
     }
     
-    .controls button {
+    .controls button, .controls select {
       padding: 8px 16px;
       background: rgba(255,255,255,0.2);
       border: 1px solid rgba(255,255,255,0.3);
@@ -50,11 +51,8 @@
       background: rgba(255,255,255,0.3);
     }
     
-    .chapter-select {
-      padding: 8px;
-      border-radius: 5px;
-      border: none;
-      font-size: 0.9rem;
+    .book-select {
+      min-width: 150px;
     }
     
     .content {
@@ -63,6 +61,15 @@
       padding: 30px 20px;
       background: #fff;
       min-height: calc(100vh - 150px);
+    }
+    
+    .book-title {
+      color: #8B4513;
+      font-size: 1.8rem;
+      text-align: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 3px double #d4c4a8;
     }
     
     .chapter-title {
@@ -115,21 +122,6 @@
       background: #ccc;
     }
     
-    .loading-spinner {
-      border: 3px solid #f3f3f3;
-      border-top: 3px solid #8B4513;
-      border-radius: 50%;
-      width: 30px;
-      height: 30px;
-      animation: spin 1s linear infinite;
-      margin: 20px auto;
-    }
-    
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    
     @media (max-width: 600px) {
       .content { padding: 15px; }
       .chapter-content { font-size: 1rem; }
@@ -139,8 +131,12 @@
 </head>
 <body>
   <div class="header">
-    <h1>📖 紅樓夢</h1>
+    <h1>📖 古典名著線上閱讀</h1>
     <div class="controls">
+      <select id="bookSelect" class="book-select">
+        <option value="hongloumeng">紅樓夢</option>
+        <option value="guchuideng">鬼吹燈</option>
+      </select>
       <select id="chapterSelect" class="chapter-select">
         <option value="">選擇章節...</option>
       </select>
@@ -157,78 +153,118 @@
   </div>
 
   <script>
-    const TOTAL_CHAPTERS = 121;
+    const BOOK_CONFIG = {
+      hongloumeng: {
+        name: '紅樓夢',
+        author: '曹雪芹（高鶚續）',
+        totalChapters: 121,
+        prefix: 'ch',
+        padding: 2
+      },
+      guchuideng: {
+        name: '鬼吹燈',
+        author: '天下霸唱',
+        totalChapters: 111,
+        prefix: 'guchuideng_',
+        padding: 2
+      }
+    };
+    
+    let currentBook = 'hongloumeng';
     let currentChapter = 1;
     
-    // 嘗試從同一目錄載入章節
-    async function loadChapter(num) {
+    // Load chapter
+    async function loadChapter(book, num) {
       const content = document.getElementById('content');
-      content.innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>載入第 ' + num + ' 回...</p></div>';
+      content.innerHTML = '<div class="loading"><p>載入 ' + BOOK_CONFIG[book].name + ' 第 ' + num + ' 回...</p></div>';
+      
+      const config = BOOK_CONFIG[book];
+      const chapterFile = config.prefix + num.toString().padStart(config.padding, '0') + '.md';
       
       try {
-        // 嘗試載入 chXX.md 文件
-        const chapterFile = 'ch' + num.toString().padStart(2, '0') + '.md';
         const response = await fetch(chapterFile);
         
         if (response.ok) {
-          const text = await response.text();
-          const titleMatch = text.match(/##?[^#\n]+/);
-          const title = titleMatch ? titleMatch[0].replace(/^##?\s*/, '').trim() : '第 ' + num + ' 回';
+          let text = await response.text();
           
-          // 簡易 Markdown 轉換
-          let html = text
-            .replace(/^#.*$/gm, '') // 移除標題行
+          // Simple markdown conversion
+          text = text
             .replace(/^## (.*$)/gm, '<h2 class="chapter-title">$1</h2>')
             .replace(/^### (.*$)/gm, '<h3>$1</h3>')
             .replace(/^$/gm, '</p><p>')
             .replace(/\n/g, '<br>');
           
-          // 清理標題
-          const cleanTitle = title.replace(/^#*\s*/, '');
+          // Extract title
+          const titleMatch = text.match(/<h2[^>]*>([^<]+)<\/h2>/);
+          const title = titleMatch ? titleMatch[1] : '第 ' + num + ' 回';
           
-          content.innerHTML = '<h2 class="chapter-title">' + cleanTitle + '</h2><div class="chapter-content"><p>' + html + '</p></div>';
+          content.innerHTML = '<h2 class="book-title">' + config.name + '</h2>' +
+                           '<h2 class="chapter-title">' + title + '</h2>' +
+                           '<div class="chapter-content"><p>' + text.replace(/<h2[^>]*>.*?<\/h2>/, '') + '</p></div>';
+          
+          currentBook = book;
           currentChapter = num;
         } else {
-          content.innerHTML = '<div class="loading"><p>章節載入失敗: ' + response.status + '</p></div>';
+          content.innerHTML = '<div class="loading"><p>章節不存在: ' + response.status + '</p></div>';
         }
       } catch (e) {
-        content.innerHTML = '<div class="loading"><p>無法載入章節: ' + e.message + '</p></div>';
+        content.innerHTML = '<div class="loading"><p>載入錯誤: ' + e.message + '</p></div>';
       }
       
-      // 更新按鈕狀態
+      // Update controls
       document.getElementById('prevBtn').disabled = currentChapter <= 1;
-      document.getElementById('nextBtn').disabled = currentChapter >= TOTAL_CHAPTERS;
-      document.getElementById('chapterSelect').value = currentChapter;
+      document.getElementById('nextBtn').disabled = currentChapter >= BOOK_CONFIG[currentBook].totalChapters;
     }
     
-    // 初始化
+    // Initialize
     function init() {
-      const select = document.getElementById('chapterSelect');
+      const bookSelect = document.getElementById('bookSelect');
+      const chapterSelect = document.getElementById('chapterSelect');
       
-      // 建立章節選單
-      for (let i = 1; i <= TOTAL_CHAPTERS; i++) {
+      // Book selection change
+      bookSelect.addEventListener('change', (e) => {
+        currentBook = e.target.value;
+        loadChapter(currentBook, 1);
+        updateChapterSelect();
+      });
+      
+      // Chapter selection change
+      chapterSelect.addEventListener('change', (e) => {
+        if (e.target.value) {
+          loadChapter(currentBook, parseInt(e.target.value));
+        }
+      });
+      
+      // Navigation buttons
+      document.getElementById('prevBtn').addEventListener('click', () => {
+        if (currentChapter > 1) {
+          loadChapter(currentBook, currentChapter - 1);
+        }
+      });
+      
+      document.getElementById('nextBtn').addEventListener('click', () => {
+        if (currentChapter < BOOK_CONFIG[currentBook].totalChapters) {
+          loadChapter(currentBook, currentChapter + 1);
+        }
+      });
+      
+      // Initial load
+      updateChapterSelect();
+      loadChapter('hongloumeng', 1);
+    }
+    
+    function updateChapterSelect() {
+      const select = document.getElementById('chapterSelect');
+      const config = BOOK_CONFIG[currentBook];
+      
+      select.innerHTML = '<option value="">選擇章節...</option>';
+      
+      for (let i = 1; i <= config.totalChapters; i++) {
         const option = document.createElement('option');
         option.value = i;
         option.textContent = '第 ' + i + ' 回';
         select.appendChild(option);
       }
-      
-      // 監聽選擇
-      select.addEventListener('change', (e) => {
-        loadChapter(parseInt(e.target.value));
-      });
-      
-      // 上下章按鈕
-      document.getElementById('prevBtn').addEventListener('click', () => {
-        if (currentChapter > 1) loadChapter(currentChapter - 1);
-      });
-      
-      document.getElementById('nextBtn').addEventListener('click', () => {
-        if (currentChapter < TOTAL_CHAPTERS) loadChapter(currentChapter + 1);
-      });
-      
-      // 載入第一章
-      loadChapter(1);
     }
     
     init();
